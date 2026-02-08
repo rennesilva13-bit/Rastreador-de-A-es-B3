@@ -1,23 +1,11 @@
 """
 📊 Rastreador de Ações B3 - Enhanced Edition
-============================================
 Sistema inteligente de análise quantitativa de ações da B3 com foco em:
-- Valuation (P/L, P/VP, Graham)
-- Qualidade (ROE, Margem Líquida, Liquidez)
-- Rentabilidade (Dividend Yield, Dividendos)
-- Análise Técnica (RSI, Volatilidade)
-
-MELHORIAS IMPLEMENTADAS:
-- Tratamento robusto de erros e timeouts
-- Processamento paralelo para maior velocidade
-- Cálculo de Score de Qualidade proprietário
-- Análise de Graham (Valor Intrínseco)
-- Indicadores técnicos (RSI, Volatilidade)
-- Comparação setorial avançada
-- Cache otimizado com TTL configurável
-- Validações de dados aprimoradas
+Valuation (P/L, P/VP, Graham)
+Qualidade (ROE, Margem Líquida, Liquidez)
+Rentabilidade (Dividend Yield, Dividendos)
+Análise Técnica (RSI, Volatilidade)
 """
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -29,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple
 import warnings
 import time
+import requests
 
 warnings.filterwarnings('ignore')
 
@@ -48,7 +37,7 @@ st.markdown("""
         --primary: #1e3a8a;
         --secondary: #0f172a;
         --accent: #3b82f6;
-        --success: #10b981;
+        --success: #10b981; 
         --warning: #f59e0b;
         --danger: #ef4444;
         --light: #f8fafc;
@@ -75,7 +64,7 @@ st.markdown("""
         box-shadow: 0 6px 25px rgba(0, 0, 0, 0.12);
     }
     
-    /* Botões modernos */
+    /* Botões modernos */ 
     .stButton>button {
         background: var(--accent);
         color: white;
@@ -142,13 +131,12 @@ st.markdown("""
         color: white;
     }
     
-    /* Progress bar customizada */
+    /* Progress bar customizada */ 
     .stProgress > div > div > div > div {
         background-color: #3b82f6;
     }
 </style>
 """, unsafe_allow_html=True)
-
 
 # ===== FUNÇÕES DE ANÁLISE TÉCNICA =====
 def calcular_rsi(precos: pd.Series, periodo: int = 14) -> float:
@@ -171,7 +159,6 @@ def calcular_rsi(precos: pd.Series, periodo: int = 14) -> float:
     except Exception:
         return 50.0
 
-
 def calcular_volatilidade(precos: pd.Series, janela: int = 30) -> float:
     """Calcula a volatilidade histórica (desvio padrão dos retornos)"""
     try:
@@ -185,7 +172,6 @@ def calcular_volatilidade(precos: pd.Series, janela: int = 30) -> float:
     except Exception:
         return 0.0
 
-
 def calcular_graham_value(lpa: float, vpa: float) -> float:
     """Calcula o Valor Intrínseco pela fórmula de Benjamin Graham"""
     try:
@@ -197,19 +183,26 @@ def calcular_graham_value(lpa: float, vpa: float) -> float:
     except Exception:
         return 0.0
 
+# ===== VERIFICAÇÃO DE CONECTIVIDADE =====
+def check_yfinance_connection() -> bool:
+    """Verifica se há conexão com a API do Yahoo Finance"""
+    try:
+        response = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/PETR4.SA", timeout=5)
+        return response.status_code == 200
+    except Exception:
+        return False
 
 # ===== CACHE DE DADOS OTIMIZADO =====
 @st.cache_data(ttl=900, show_spinner=False)
 def get_yahoo_data_enhanced(ticker: str) -> Tuple[Optional[Dict], Optional[str]]:
     """
     Função otimizada para coleta e processamento de dados da B3 via Yahoo Finance
-    
     Returns:
         Tuple[Dict ou None, str ou None]: (dados_processados, mensagem_erro)
     """
     ticker_clean = ticker.strip().upper().replace('.SA', '')
     yahoo_ticker = f"{ticker_clean}.SA"
-    
+
     try:
         acao = yf.Ticker(yahoo_ticker)
         
@@ -399,7 +392,6 @@ def get_yahoo_data_enhanced(ticker: str) -> Tuple[Optional[Dict], Optional[str]]
     except Exception as e:
         return None, f"{ticker_clean}: {str(e)[:50]}"
 
-
 def processar_em_paralelo(tickers: List[str], max_workers: int = 5) -> Tuple[List[Dict], List[str]]:
     """Processa múltiplos tickers em paralelo"""
     dados_coletados = []
@@ -421,9 +413,8 @@ def processar_em_paralelo(tickers: List[str], max_workers: int = 5) -> Tuple[Lis
                     erros.append(erro)
             except Exception as e:
                 erros.append(f"{ticker}: Timeout ou erro crítico")
-    
-    return dados_coletados, erros
 
+    return dados_coletados, erros
 
 # ===== INICIALIZAÇÃO DO SESSION STATE =====
 if 'df_resultados' not in st.session_state:
@@ -431,14 +422,9 @@ if 'df_resultados' not in st.session_state:
 if 'timestamp_analise' not in st.session_state:
     st.session_state['timestamp_analise'] = None
 
-
 # ===== SIDEBAR - CONTROLES =====
 with st.sidebar:
-    st.markdown("""
-    <h2 style='color: white; text-align: center; margin-bottom: 2rem;'>
-        🔍 Painel de Controle
-    </h2>
-    """, unsafe_allow_html=True)
+    st.markdown("### 🔍 Painel de Controle")
     
     # Setores B3
     setores_b3 = [
@@ -448,9 +434,9 @@ with st.sidebar:
         "Comunicação", "Outros"
     ]
     setor_selecionado = st.selectbox("📊 Filtrar por Setor", setores_b3, index=0)
-    
+
     st.markdown("<hr style='border: 1px solid #334155; margin: 1.5rem 0;'>", unsafe_allow_html=True)
-    
+
     # Filtros Quantitativos
     st.markdown("**🎯 Filtros de Valuation**")
     col1, col2 = st.columns(2)
@@ -462,9 +448,9 @@ with st.sidebar:
         max_pl = st.number_input("P/L Máx", min_value=0.0, max_value=100.0, value=20.0, step=1.0)
         max_pvp = st.number_input("P/VP Máx", min_value=0.0, max_value=5.0, value=1.5, step=0.1)
         max_divida = st.number_input("Dív/PL Máx", min_value=0.0, max_value=5.0, value=2.0, step=0.1)
-    
+
     st.markdown("<hr style='border: 1px solid #334155; margin: 1.5rem 0;'>", unsafe_allow_html=True)
-    
+
     # Lista de Tickers
     st.markdown("**📝 Tickers B3**")
     tickers_default = """PETR4
@@ -487,55 +473,49 @@ PRIO3
 RDOR3
 CSAN3
 BEEF3"""
-    
     tickers_input = st.text_area(
         "Digite um ticker por linha:", 
         value=tickers_default, 
         height=200,
         help="Insira os códigos das ações sem o .SA"
     )
-    
+
     tickers_lista = [t.strip().upper() for t in tickers_input.strip().split("\n") if t.strip()]
-    
+
     st.info(f"✅ {len(tickers_lista)} tickers listados")
-    
+
     st.markdown("<hr style='border: 1px solid #334155; margin: 1.5rem 0;'>", unsafe_allow_html=True)
-    
+
     # Configurações Avançadas
     with st.expander("⚙️ Configurações Avançadas"):
         usar_paralelo = st.checkbox("Processamento Paralelo", value=True, help="Mais rápido, mas usa mais recursos")
         max_workers = st.slider("Threads Paralelas", 3, 10, 5) if usar_paralelo else 1
         mostrar_erros = st.checkbox("Mostrar Erros Detalhados", value=False)
-    
+
     st.markdown("""
     <div style='text-align: center; margin-top: 2rem; color: #94a3b8; font-size: 0.85rem;'>
-        📊 Yahoo Finance API<br>
-        ⚡ Cache: 15 minutos<br>
+        📊 Yahoo Finance API <br>
+        ⚡ Cache: 15 minutos <br>
         🔒 Dados em tempo real
     </div>
     """, unsafe_allow_html=True)
 
-
 # ===== CABEÇALHO PRINCIPAL =====
 st.markdown("""
-<div style="text-align: center; padding: 2rem 0; margin-bottom: 2rem; 
-     background: linear-gradient(90deg, #1e3a8a 0%, #0f172a 100%); 
-     border-radius: 16px; color: white; box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
-    <h1 style="font-size: 2.8rem; margin-bottom: 0.5rem; font-weight: 700;">
-        📈 Rastreador de Ações B3 Pro
-    </h1>
-    <p style="font-size: 1.2rem; opacity: 0.9; max-width: 800px; margin: 0 auto;">
-        Análise quantitativa inteligente • Valuation • Qualidade • Dividend Yield
-    </p>
-</div>
-""", unsafe_allow_html=True)
+# 📈 Rastreador de Ações B3 Pro
 
+Análise quantitativa inteligente • Valuation • Qualidade • Dividend Yield
+""")
+
+# ===== VERIFICAÇÃO DE CONEXÃO =====
+if not check_yfinance_connection():
+    st.error("❌ Conexão com a API do Yahoo Finance não está disponível. Verifique sua conexão ou tente mais tarde.")
+    st.stop()
 
 # ===== BOTÃO DE ANÁLISE =====
 col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
 with col_btn2:
     analisar = st.button("🚀 Executar Análise Completa", use_container_width=True, type="primary")
-
 
 # ===== PROCESSAMENTO =====
 if analisar and tickers_lista:
@@ -590,7 +570,7 @@ if analisar and tickers_lista:
             with st.expander(f"⚠️ Erros Encontrados ({len(erros)})"):
                 for erro in erros:
                     st.caption(erro)
-    
+
     # ===== PROCESSAMENTO DOS RESULTADOS =====
     if dados_coletados:
         df = pd.DataFrame(dados_coletados)
@@ -863,16 +843,16 @@ if analisar and tickers_lista:
                 st.metric("P/L Mediano", f"{df[df['P/L'] > 0]['P/L'].median():.1f}")
             with col_s4:
                 st.metric("Score Médio", f"{df['Score'].mean():.1f}")
-    
+
     else:
         st.error("❌ Nenhum dado foi coletado. Verifique:")
         st.markdown("""
-        - Os tickers estão corretos?
-        - Há conexão com a internet?
-        - A API do Yahoo Finance está acessível?
+        - Os tickers estão corretos e sem espaços extras?
+        - A API do Yahoo Finance está acessível (teste com PETR4, VALE3)?
+        - Há limite de requisições sendo atingido?
         """)
         
-        if erros and mostrar_erros:
+        if 'erros' in locals() and erros and mostrar_erros:
             with st.expander("Ver detalhes dos erros"):
                 for erro in erros:
                     st.caption(erro)
@@ -880,17 +860,11 @@ if analisar and tickers_lista:
 # ===== RODAPÉ =====
 st.markdown("---")
 st.markdown(f"""
-<div style="text-align: center; padding: 1.5rem; color: #64748b; font-size: 0.9rem;">
-    <p style="margin-bottom: 0.5rem;">
-        💡 <strong>Aviso Legal:</strong> Este aplicativo utiliza dados do Yahoo Finance e é destinado 
-        exclusivamente para fins educacionais e de análise pessoal.
-    </p>
-    <p style="margin-bottom: 0.5rem;">
-        <strong>Não constitui recomendação de investimento.</strong> 
-        Sempre faça sua própria análise e consulte um profissional certificado antes de investir.
-    </p>
-    <p style="margin-top: 1rem; font-weight: 600; color: #3b82f6;">
-        🚀 Desenvolvido com Streamlit • Última atualização: {datetime.now().strftime("%d/%m/%Y às %H:%M")}
-    </p>
+<div style='text-align: center; color: #64748b; font-size: 0.9rem;'>
+💡 Aviso Legal: Este aplicativo utiliza dados do Yahoo Finance e é destinado 
+exclusivamente para fins educacionais e de análise pessoal.<br>
+Não constitui recomendação de investimento. 
+Sempre faça sua própria análise e consulte um profissional certificado antes de investir.<br><br>
+🚀 Desenvolvido com Streamlit • Última atualização: {datetime.now().strftime("%d/%m/%Y às %H:%M")}
 </div>
 """, unsafe_allow_html=True)
